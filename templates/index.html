@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EasyType - 手机输入到Windows</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            flex: 1;
+            padding: 20px;
+            max-width: 100%;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .input-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .input-area {
+            width: 100%;
+            min-height: 150px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .input-area:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .send-btn {
+            width: 100%;
+            padding: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .clear-btn {
+            width: 100%;
+            padding: 20px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            padding: 20px;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .connection-status.error {
+            background: #ff4444;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="connection-status" id="connectionStatus">已连接</div>
+
+    <div class="container">
+        <div class="header">
+            <h1>EasyType</h1>
+            <p>在手机上输入，实时推送到Windows</p>
+        </div>
+
+        <div class="input-section">
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="type">直接输入</button>
+                <button class="mode-btn" data-mode="clipboard">剪贴板</button>
+            </div>
+
+            <textarea class="input-area" id="inputArea" placeholder="在此输入文字，将自动推送到Windows..." autocomplete="off"
+                autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+
+            <div class="status-bar">
+                <span id="charCount">0 字符</span>
+                <span id="status">就绪</span>
+            </div>
+
+            <button class="send-btn" id="sendBtn">发送</button>
+
+            <button class="clear-btn" id="clearBtn">清空输入</button>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>EasyType v0.1.0 | 确保手机和电脑在同一网络</p>
+    </div>
+
+    <script>
+        class EasyType {
+            constructor() {
+                this.mode = 'type';
+                this.inputArea = document.getElementById('inputArea');
+                this.charCount = document.getElementById('charCount');
+                this.status = document.getElementById('status');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.modeButtons = document.querySelectorAll('.mode-btn');
+                this.sendBtn = document.getElementById('sendBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+
+                this.typingTimer = null;
+                this.lastSentText = '';
+
+                this.init();
+            }
+
+            init() {
+                // Mode selection
+                this.modeButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.modeButtons.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.mode = btn.dataset.mode;
+                        this.updateStatus(`已切换到${this.mode === 'type' ? '直接输入' : '剪贴板'}模式`);
+
+                        // Update send button visibility
+                        if (this.mode === 'type') {
+                            this.sendBtn.style.display = 'block';
+                            // Cancel any scheduled clipboard sends
+                            clearTimeout(this.typingTimer);
+                        } else {
+                            this.sendBtn.style.display = 'none';
+                        }
+                    });
+                });
+
+                // Input area events
+                this.inputArea.addEventListener('input', () => {
+                    this.updateCharCount();
+                    // Only auto-send in clipboard mode, not in type mode
+                    if (this.mode === 'clipboard') {
+                        this.scheduleTyping();
+                    }
+                });
+
+                // Send button
+                this.sendBtn.addEventListener('click', () => {
+                    if (this.mode === 'type') {
+                        // For type mode, just send text directly
+                        this.sendText();
+                    } else {
+                        // For clipboard mode, send and paste
+                        this.sendAndPaste();
+                    }
+                });
+
+
+                // Clear button
+                this.clearBtn.addEventListener('click', () => {
+                    this.inputArea.value = '';
+                    this.updateCharCount();
+                    this.lastSentText = '';
+                    this.updateStatus('已清空');
+                });
+
+                // Test connection
+                this.testConnection();
+            }
+
+            updateCharCount() {
+                const count = this.inputArea.value.length;
+                this.charCount.textContent = `${count} 字符`;
+            }
+
+            scheduleTyping() {
+                clearTimeout(this.typingTimer);
+                this.typingTimer = setTimeout(() => {
+                    this.sendText();
+                }, 200);  // 200ms debounce for better real-time feel
+            }
+
+            async sendText() {
+                const text = this.inputArea.value;
+
+                console.log(`[EasyType] Preparing to send text - Mode: ${this.mode}, Length: ${text.length}, Text: ${text.substring(0, 50)}`);
+
+                // For clipboard mode, only send if text has changed
+                // For type mode, send whenever there's text
+                if (this.mode === 'clipboard' && text === this.lastSentText) {
+                    console.log('[EasyType] Skipping send - clipboard mode and text unchanged');
+                    return;
+                }
+
+                if (this.mode === 'type' && text.length === 0) {
+                    console.log('[EasyType] Skipping send - type mode but text is empty');
+                    return;
+                }
+
+                this.lastSentText = text;
+
+                try {
+                    console.log(`[EasyType] Sending request to server - Mode: ${this.mode}`);
+                    this.updateStatus('发送中...');
+
+                    const response = await fetch('/type', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            text: text,
+                            mode: this.mode
+                        })
+                    });
+
+                    const result = await response.json();
+                    console.log('[EasyType] Server response:', result);
+
+                    if (result.success) {
+                        this.updateStatus('已发送');
+                        setTimeout(() => {
+                            if (this.status.textContent === '已发送') {
+                                this.updateStatus('就绪');
+                            }
+                        }, 1000);
+
+                        // Clear input after successful send in type mode
+                        if (this.mode === 'type') {
+                            this.inputArea.value = '';
+                            this.updateCharCount();
+                            // 核心代码：让 textarea 重新获得输入焦点
+                            this.inputArea.focus();
+                        }
+                    } else {
+                        console.error('[EasyType] Server returned error:', result.error);
+                        this.updateStatus('发送失败', true);
+                    }
+
+                    return result.success;
+                } catch (error) {
+                    console.error('[EasyType] Error sending text:', error);
+                    this.updateStatus('连接错误', true);
+                    this.showConnectionError();
+                    return false;
+                }
+            }
+
+            async sendAndPaste() {
+                console.log('[EasyType] Sending and pasting...');
+
+                // Send text to server (copy to clipboard)
+                const success = await this.sendText();
+
+                if (success) {
+                    try {
+                        // Wait a moment for clipboard to be ready
+                        await new Promise(resolve => setTimeout(resolve, 100));
+
+                        // Paste from clipboard
+                        console.log('[EasyType] Sending paste command...');
+                        this.updateStatus('粘贴中...');
+
+                        const response = await fetch('/paste', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({})
+                        });
+
+                        const result = await response.json();
+                        console.log('[EasyType] Paste response:', result);
+
+                        if (result.success) {
+                            this.updateStatus('已粘贴');
+                            setTimeout(() => {
+                                if (this.status.textContent === '已粘贴') {
+                                    this.updateStatus('就绪');
+                                }
+                            }, 1000);
+                        } else {
+                            console.error('[EasyType] Paste failed:', result.error);
+                            this.updateStatus('粘贴失败', true);
+                        }
+                    } catch (error) {
+                        console.error('[EasyType] Error pasting:', error);
+                        this.updateStatus('粘贴错误', true);
+                    }
+                }
+            }
+
+
+            async testConnection() {
+                try {
+                    const response = await fetch('/api/info');
+                    const result = await response.json();
+
+                    if (result.status === 'running') {
+                        this.connectionStatus.textContent = '已连接';
+                        this.connectionStatus.className = 'connection-status';
+                    }
+                } catch (error) {
+                    this.showConnectionError();
+                }
+            }
+
+            showConnectionError() {
+                this.connectionStatus.textContent = '连接失败';
+                this.connectionStatus.className = 'connection-status error';
+            }
+
+            updateStatus(message, isError = false) {
+                this.status.textContent = message;
+                this.status.style.color = isError ? '#ff4444' : '#666';
+            }
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new EasyType();
+        });
+    </script>
+</body>
+
+</html>

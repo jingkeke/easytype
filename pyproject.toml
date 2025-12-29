@@ -1,0 +1,14 @@
+[project]
+name = "easytype"
+version = "0.1.0"
+description = "Mobile input to Windows clipboard or direct typing"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.0.0",
+    "pyautogui>=0.9.54",
+    "pyperclip>=1.8.2",
+]
+
+[project.scripts]
+easytype = "main:main"
