@@ -3,6 +3,9 @@ import pyautogui
 import pyperclip
 import logging
 import time
+import ctypes
+import sys
+import os
 
 app = Flask(__name__)
 
@@ -117,8 +120,50 @@ def get_info():
         'special_keys': ['enter', 'tab', 'space', 'backspace', 'escape']
     })
 
+def is_admin():
+    """Check if the script is running with admin privileges"""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
+def run_as_admin():
+    """Try to re-run the script with admin privileges"""
+    if is_admin():
+        return True
+
+    # Get the current script path
+    script_path = os.path.abspath(sys.argv[0])
+
+    # Re-run the script with admin privileges
+    try:
+        ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, f'"{script_path}"', None, 1
+        )
+        return True
+    except:
+        return False
+
 def main():
     """Run the Flask app"""
+    # Check for admin privileges and request if needed
+    if not is_admin():
+        print("当前程序需要管理员权限才能运行。正在请求管理员权限...")
+        print("A UAC prompt will appear. Please click 'Yes' to continue.")
+
+        try:
+            if run_as_admin():
+                # Exit the current instance, the elevated one will take over
+                sys.exit(0)
+            else:
+                print("无法获取管理员权限。请以管理员身份运行此脚本。")
+                input("按回车键退出...")
+                sys.exit(1)
+        except Exception as e:
+            print(f"请求管理员权限时出错: {e}")
+            input("按回车键退出...")
+            sys.exit(1)
+
     print("Starting EasyType server...")
     print("Access from your mobile device using the local IP address")
     print("Example: http://192.168.1.100:5000")
