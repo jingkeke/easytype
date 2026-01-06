@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """
-测试粘贴功能的辅助脚本
-用于验证Ctrl+V模拟是否正常工作
+测试剪贴板模拟是否正常工作
+用于验证剪贴板模拟是否正常工作
 """
 
 import pyautogui
 import pyperclip
 import time
 import sys
+import os
+import platform
+
+IS_MAC = platform.system() == 'Darwin'
+MODIFIER = 'command' if IS_MAC else 'ctrl'
 
 def test_clipboard_paste():
     """测试剪贴板粘贴功能"""
     print("=" * 50)
-    print("EasyType 粘贴功能测试")
+    print(f"EasyType 粘贴功能测试 ({'macOS' if IS_MAC else 'Windows'})")
     print("=" * 50)
 
     # 测试文本
@@ -20,7 +25,7 @@ def test_clipboard_paste():
 
     print(f"\n测试文本: {test_text}")
     print("\n请按照以下步骤操作:")
-    print("1. 点击你想要输入文本的Flutter应用窗口")
+    print("1. 点击你想要输入文本的应用窗口（例如记事本或备忘录）")
     print("2. 确保输入框有光标在闪烁")
     print("3. 回到此窗口并按Enter键继续")
 
@@ -36,16 +41,16 @@ def test_clipboard_paste():
         time.sleep(1)
         print("✓ 等待完成")
 
-        print("\n[3/4] 模拟按下 Ctrl+V...")
-        pyautogui.hotkey('ctrl', 'v')
-        print("✓ Ctrl+V 已发送")
+        print(f"\n[3/4] 模拟按下 {MODIFIER.capitalize()}+V...")
+        pyautogui.hotkey(MODIFIER, 'v')
+        print(f"✓ {MODIFIER.capitalize()}+V 已发送")
 
         print("\n[4/4] 等待粘贴完成...")
         time.sleep(0.2)
         print("✓ 操作完成")
 
         print("\n" + "=" * 50)
-        print("测试完成！请检查Flutter应用是否收到了文本。")
+        print("测试完成！请检查目标应用是否收到了文本。")
         print("=" * 50)
 
         return True
@@ -78,25 +83,27 @@ def test_keyboard_input():
         print(f"\n✗ 测试失败: {e}")
         return False
 
-def check_admin_privileges():
-    """检查是否有管理员权限"""
-    import ctypes
-    try:
-        is_admin = ctypes.windll.shell32.IsUserAnAdmin()
-        return bool(is_admin)
-    except:
-        return False
+def check_privileges():
+    """检查权限"""
+    if IS_MAC:
+        print("\n⚠️  macOS 提示: 请确保在'系统设置 > 隐私与安全性 > 辅助功能'中允许了您的终端。")
+        return True
+    else:
+        import ctypes
+        try:
+            return bool(ctypes.windll.shell32.IsUserAnAdmin())
+        except:
+            return False
 
 def main():
     """主测试流程"""
     print("EasyType 功能测试工具")
     print("=" * 50)
 
-    # 检查管理员权限
-    if not check_admin_privileges():
+    # 检查权限
+    if not check_privileges() and not IS_MAC:
         print("\n⚠️  警告: 当前没有管理员权限")
         print("   某些应用程序可能需要管理员权限才能接收模拟输入")
-        print("   建议: 右键点击终端，选择'以管理员身份运行'")
         input("\n按Enter键继续测试...")
 
     # 测试剪贴板粘贴
@@ -122,7 +129,10 @@ def main():
         print("\n✗ 部分测试失败，请检查错误信息。")
         print("\n建议:")
         print("1. 确保目标应用窗口是活动窗口")
-        print("2. 尝试以管理员身份运行终端")
+        if IS_MAC:
+            print("2. 检查‘辅助功能’权限设置")
+        else:
+            print("2. 尝试以管理员身份运行终端")
         print("3. 检查是否有安全软件阻止了模拟输入")
 
     print("=" * 50)

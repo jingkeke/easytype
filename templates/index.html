@@ -207,8 +207,15 @@
             try {
                 const res = await fetch('/api/info');
                 if (res.ok) {
+                    const info = await res.json();
                     document.getElementById('statusBox').className = 'status online';
                     document.getElementById('statusTxt').innerText = '在线';
+                    
+                    // 适配按键显示
+                    if (info.modifier === 'command') {
+                        const ctrlBtn = document.querySelector('button[onclick*="ctrl_enter"]');
+                        if (ctrlBtn) ctrlBtn.innerText = 'Cmd + Enter';
+                    }
                 }
             } catch (e) {
                 document.getElementById('statusBox').className = 'status';
